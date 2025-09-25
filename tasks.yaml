@@ -1,0 +1,98 @@
+---
+classify_issues_from_url_and_user_question:
+  description: 'Analyze the user question: "{user_question}" to classify any workplace
+    issues into the three main domains. 1) Cross-functional alignment difficulties,
+    2) Soft skills gaps, and 3) Company policy issues.'
+  expected_output: "A structured case-specific classification report with exactly
+    3 sections in JSON format:\n\n## Cross-functional alignment difficulties\n[One
+    specific problem identified in this domain, or \"None identified\" if no issues
+    found]\n\n## Soft skills gaps  \n[One specific problem identified in this domain,
+    or \"None identified\" if no issues found]\n\n## Company policy issues\n[One specific
+    problem identified in this domain, or \"None identified\" if no issues found]"
+  agent: agent_1
+analyze_cross_functional_issues:
+  description: |-
+    Analyze the workplace issue and identify all teams, functions, or departments involved. For each team identified, document their typical:
+    - Core objectives and KPIs
+    - Primary data sources and metrics they rely on
+    - Decision-making frameworks they use
+    - Operational constraints and pressures
+    - Communication styles and preferences
+    - Timeline expectations and urgency factors
+
+    Focus on understanding the situational context and why misunderstandings might occur between these teams.
+  expected_output: A brief analysis document identifying all teams involved in the
+    Cross-functional alignment difficulties, their operational characteristics, and
+    potential sources of miscommunication or misalignment. Include specific examples
+    of how their different approaches might create understanding gaps.
+  agent: agent_2_1
+  async_execution: true
+  context:
+  - classify_issues_from_url_and_user_question
+research_company_policy_solutions:
+  description: |-
+    Using the handbook URL "{handbook_url}", extract specific company policies, procedures, and guidelines that directly address the policy issues identified in the classification step. Focus on finding relevant sections that provide answers or guidance for the workplace challenges described in "{user_question}".
+
+    Search for:
+    - Relevant policy sections and procedures
+    - Escalation processes and reporting structures
+    - Company guidelines for the specific situation
+    - Templates, forms, or resources mentioned
+    - Contact information for relevant departments
+    - Compliance requirements or legal considerations
+
+    Extract specific policy language, preserve all source URLs, and organize findings to directly address the identified policy gaps.
+  expected_output: "A comprehensive policy research report in markdown format with:\n\n##
+    Relevant Company Policies\n[Specific policies extracted with exact language from
+    the handbook]\n\n## Applicable Procedures  \n[Step-by-step procedures that apply
+    to the situation]\n\n## Resources and Tools\n[Templates, forms, contacts, or other
+    resources available]\n\n## Compliance Requirements\n[Any legal or regulatory considerations
+    mentioned]\n\n## Source References\n[Direct links to all handbook sections referenced]\n\nAll
+    information must include specific handbook URLs and be directly relevant to the
+    policy issues identified."
+  agent: agent_2_3
+  async_execution: true
+  context:
+  - classify_issues_from_url_and_user_question
+analyze_soft_skills_gaps:
+  description: |-
+    Based on the classified issues from "{user_question}", identify specific soft skills gaps affecting workplace interactions. Analyze communication breakdowns, emotional intelligence deficits, conflict resolution weaknesses, or interpersonal challenges mentioned or implied in the scenario.
+
+    Focus on:
+    - Communication style mismatches
+    - Lack of empathy or perspective-taking
+    - Poor listening or feedback skills
+    - Difficulty managing emotions or stress
+    - Inadequate conflict resolution abilities
+    - Missing collaboration or teamwork skills
+
+    Provide clear identification of which soft skills are lacking and how they contribute to the workplace issues.
+  expected_output: "A detailed soft skills gap analysis in markdown format with:\n\n##
+    Identified Soft Skills Gaps\n[List specific soft skills that are missing or underdeveloped]\n\n##
+    Impact Analysis  \n[How these gaps are contributing to the workplace issues described]\n\n##
+    Skill Development Priorities\n[Which soft skills should be addressed first and
+    why]\n\nFocus on being specific about which soft skills are problematic rather
+    than generic advice."
+  agent: agent_2_2
+  async_execution: true
+  context:
+  - classify_issues_from_url_and_user_question
+compile_final_report:
+  description: Compile and present all analysis outputs exactly as received from the
+    three context tasks. Do not modify, analyze, or interpret the content - simply
+    organize and format it cleanly for final presentation. DO NOT THINK
+  expected_output: "A complete compilation report containing all three analysis outputs
+    presented sequentially:\n\n## Cross-Functional Analysis\n[Complete output from
+    cross-functional analysis task]\n\n## Soft Skills Gap Analysis  \n[Complete output
+    from soft skills analysis task]\n\n## Company Policy Research\n[Complete output
+    from policy research task]\n\nPresent all content exactly as received without
+    modification, additional analysis, or interpretation."
+  agent: report_compiler
+  context:
+  - analyze_cross_functional_issues
+  - analyze_soft_skills_gaps
+  - research_company_policy_solutions
+chat_conversation:
+  description: Engage in a natural conversation with the user, understand their input "{user_input}", and provide helpful, contextually appropriate responses.
+  expected_output: A clear, concise, and helpful response that directly addresses the user's input while maintaining a natural conversational flow.
+  agent: chat_bot
