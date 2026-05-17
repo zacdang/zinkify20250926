@@ -1,0 +1,12 @@
+# Core
+python-dotenv>=1.0.0
+
+# Data handling
+pydantic>=2.0.0
+
+# Optional: real tool integrations (comment out if not installed)
+# chemdataextractor2>=2.0.0
+# Install MERMaid separately following its own instructions
+
+# Testing
+pytest>=7.4.0
