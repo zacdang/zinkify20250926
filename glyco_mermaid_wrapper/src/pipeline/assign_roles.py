@@ -2,10 +2,10 @@
 Step 7 — Assign donor / acceptor / product roles and build an initial
          glycosylation reaction record.
 
-Uses:
-- The most relevant figure's caption and text labels
-- The identifier dictionary
-- CDE condition mentions (promoter, solvent, temperature, time, yield, stereo)
+Uses the MERMaid visual branch as the primary source for the initial reaction
+record backbone (figures, captions, text labels, DataRaider reaction rows).
+The CDE text branch is used only to fill condition mentions (promoter, solvent,
+temperature, time, yield, stereochemistry) when the visual data is absent.
 
 All unknown fields are initialised to "NR" (not reported).
 """
@@ -76,7 +76,9 @@ def assign_roles(
     if record.product_id != "NR":
         record.product_name = resolved.get(record.product_id, {}).get("possible_name", "NR")
 
-    # ── Fill conditions from CDE condition mentions ───────────────────────────
+    # ── Fill conditions from CDE text branch condition mentions ──────────────
+    # CDE is used here only to supplement visual data that is absent from the
+    # MERMaid branch (figures / DataRaider rows).
     for mention in unified.get("condition_mentions", []):
         field = mention.get("field", "")
         value = mention.get("value", "NR")
@@ -94,7 +96,7 @@ def assign_roles(
             record.stereochemistry = value
             record.provenance["stereochemistry"] = ctx
 
-    # ── Extract promoter from chemical mentions ───────────────────────────────
+    # ── Extract promoter from CDE text branch chemical mentions ──────────────
     promoter_parts = []
     for chem in unified.get("chemical_mentions", []):
         if chem.get("role_guess") == "promoter":
@@ -103,7 +105,7 @@ def assign_roles(
         record.promoter = "/".join(promoter_parts)
         record.provenance["promoter"] = "CDE chemical_mentions"
 
-    # ── Extract solvent from chemical mentions ────────────────────────────────
+    # ── Extract solvent from CDE text branch chemical mentions ───────────────
     for chem in unified.get("chemical_mentions", []):
         if chem.get("role_guess") == "solvent" and record.solvent == "NR":
             record.solvent = chem.get("full_name") or chem.get("text", "NR")
@@ -116,10 +118,52 @@ def assign_roles(
         record.procedure_reference = proc_match.group(0)
         record.provenance["procedure_reference"] = f"Figure {record.figure_id} caption"
 
+    # ── Populate reaction_rows from DataRaider tables (MERMaid visual branch) ─
+    all_rows = []
+    for table in unified.get("tables", []):
+        if table.get("source") != "dataraider":
+            continue
+        table_id = table.get("table_id", "")
+        for row in table.get("rows", []):
+            all_rows.append({"table_id": table_id, **row})
+    record.reaction_rows = all_rows
+
+    # ── Backfill conditions from DataRaider rows when still NR ───────────────
+    for row in all_rows:
+        row_lower = {k.lower(): v for k, v in row.items()}
+        if record.temperature == "NR" and row_lower.get("temperature"):
+            record.temperature = row_lower["temperature"]
+            record.provenance["temperature"] = "dataraider_table"
+        if record.yield_ == "NR" and row_lower.get("yield"):
+            record.yield_ = row_lower["yield"]
+            record.provenance["yield"] = "dataraider_table"
+        if record.time == "NR" and row_lower.get("time"):
+            record.time = row_lower["time"]
+            record.provenance["time"] = "dataraider_table"
+        if record.promoter == "NR" and row_lower.get("promoter"):
+            record.promoter = row_lower["promoter"]
+            record.provenance["promoter"] = "dataraider_table"
+        if record.solvent == "NR" and row_lower.get("solvent"):
+            record.solvent = row_lower["solvent"]
+            record.provenance["solvent"] = "dataraider_table"
+        if record.donor_id == "NR" and row_lower.get("donor"):
+            record.donor_id = record.donor_name = row_lower["donor"]
+            record.provenance["donor_id"] = "dataraider_table"
+        if record.acceptor_id == "NR" and row_lower.get("acceptor"):
+            record.acceptor_id = record.acceptor_name = row_lower["acceptor"]
+            record.provenance["acceptor_id"] = "dataraider_table"
+        if record.product_id == "NR" and row_lower.get("product"):
+            record.product_id = record.product_name = row_lower["product"]
+            record.provenance["product_id"] = "dataraider_table"
+        if record.stereochemistry == "NR" and row_lower.get("stereochemistry"):
+            record.stereochemistry = row_lower["stereochemistry"]
+            record.provenance["stereochemistry"] = "dataraider_table"
+
     logger.info(
         f"Role assignment for {paper_id}: "
         f"donor={record.donor_id}, acceptor={record.acceptor_id}, "
-        f"product={record.product_id}, promoter={record.promoter}"
+        f"product={record.product_id}, promoter={record.promoter}, "
+        f"reaction_rows={len(record.reaction_rows)}"
     )
     return record
 

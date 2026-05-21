@@ -1,19 +1,42 @@
 """
-Step 4 — Merge MERMaid and ChemDataExtractor outputs.
+Step 4 — Merge MERMaid visual branch and CDE text branch outputs.
 
 Produces a single unified internal representation that all downstream
 pipeline steps operate on.
 
+Architecture
+------------
+MERMaid visual branch  → figures, captions, tables, DataRaider reaction rows
+CDE text branch        → text_chunks, si_chunks, chemical_mentions,
+                         condition_mentions
+
 Unified structure:
 {
   "paper_id":        str,
-  "figures":         [ Figure.to_dict() ],
-  "tables":          [ { table_id, caption, headers, rows } ],
-  "text_chunks":     [ Chunk.to_dict() ],     -- main text + captions
-  "si_chunks":       [ Chunk.to_dict() ],     -- SI text + procedures
-  "chemical_mentions": [...],                 -- from CDE
-  "condition_mentions":[...],                 -- from CDE
-  "candidate_reactions": [],                  -- filled by later steps
+
+  # ── Branch-namespaced keys ──────────────────────────────────────────────────
+  # MERMaid visual branch — figures / captions / tables / DataRaider rows
+  "mermaid_visual": {
+      "figures":   [ Figure.to_dict() ],
+      "tables":    [ { table_id, caption, headers, rows } ],
+      "captions":  [ str ],                 -- figure captions as plain text
+  },
+  # CDE text branch — chemistry-aware text parsing results
+  "cde_text": {
+      "text_chunks":        [ Chunk.to_dict() ],
+      "si_chunks":          [ Chunk.to_dict() ],
+      "chemical_mentions":  [...],
+      "condition_mentions": [...],
+  },
+
+  # ── Flat keys (kept for backward compatibility with downstream steps) ───────
+  "figures":            [ Figure.to_dict() ],
+  "tables":             [ { table_id, caption, headers, rows } ],
+  "text_chunks":        [ Chunk.to_dict() ],   -- main text + captions
+  "si_chunks":          [ Chunk.to_dict() ],   -- SI text + procedures
+  "chemical_mentions":  [...],                 -- from CDE
+  "condition_mentions": [...],                 -- from CDE
+  "candidate_reactions": [],                   -- filled by later steps
 }
 """
 
@@ -26,16 +49,22 @@ logger = get_logger(__name__)
 
 def merge_extractions(mermaid_output: dict, cde_output: dict) -> dict:
     """
-    Combine outputs from MERMaid and ChemDataExtractor into one dict.
+    Combine the MERMaid visual branch and CDE text branch outputs into a
+    single unified dict used by all downstream steps.
 
     Parameters
     ----------
-    mermaid_output : Result dict from run_mermaid().
-    cde_output     : Result dict from run_chemdataextractor().
+    mermaid_output : Result dict from the MERMaid branch (run_mermaid()).
+                     Provides figures, captions, tables, and DataRaider rows.
+    cde_output     : Result dict from the CDE text branch
+                     (run_chemdataextractor()).
+                     Provides text_chunks, si_chunks, chemical_mentions, and
+                     condition_mentions.
 
     Returns
     -------
-    Unified dict used by all downstream steps.
+    Unified dict with branch-namespaced keys (``mermaid_visual``,
+    ``cde_text``) as well as flat keys for backward compatibility.
     """
     paper_id = mermaid_output.get("paper_id", "UNKNOWN")
     logger.info(f"Merging extractions for paper {paper_id}")
@@ -108,14 +137,38 @@ def merge_extractions(mermaid_output: dict, cde_output: dict) -> dict:
             )
             si_chunks.append(chunk.to_dict())
 
+    chemical_mentions  = cde_output.get("chemical_mentions", [])
+    condition_mentions = cde_output.get("condition_mentions", [])
+
     unified = {
-        "paper_id":           paper_id,
+        "paper_id": paper_id,
+
+        # ── Branch-namespaced keys ────────────────────────────────────────────
+        # MERMaid visual branch — figures / captions / tables / DataRaider rows
+        "mermaid_visual": {
+            "figures": figures,
+            "tables":  tables,
+            "captions": [
+                fig["caption"]
+                for fig in mermaid_output.get("figures", [])
+                if fig.get("caption")
+            ],
+        },
+        # CDE text branch — chemistry-aware text parsing results
+        "cde_text": {
+            "text_chunks":        text_chunks,
+            "si_chunks":          si_chunks,
+            "chemical_mentions":  chemical_mentions,
+            "condition_mentions": condition_mentions,
+        },
+
+        # ── Flat keys (backward-compatible) ──────────────────────────────────
         "figures":            figures,
         "tables":             tables,
         "text_chunks":        text_chunks,
         "si_chunks":          si_chunks,
-        "chemical_mentions":  cde_output.get("chemical_mentions", []),
-        "condition_mentions": cde_output.get("condition_mentions", []),
+        "chemical_mentions":  chemical_mentions,
+        "condition_mentions": condition_mentions,
         "candidate_reactions":[],   # populated by assign_roles
     }
 

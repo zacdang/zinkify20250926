@@ -1,9 +1,14 @@
 """
 Step 6 — Build an identifier dictionary.
 
-Scans text chunks, figure captions, and table rows to find alphanumeric
-labels (e.g. "3a", "5b", "Procedure B") and maps them to chemical names
-or descriptions wherever possible.
+Primarily uses the CDE text branch (text_chunks, si_chunks) to map
+alphanumeric compound labels (e.g. "3a", "5b", "Procedure B") to chemical
+names or descriptions.  Figure captions from the MERMaid visual branch are
+used as a secondary source when no name can be resolved from the text chunks.
+
+CDE text chunks (source_type in {"procedure", "main_text", "si_text"}) are
+ordered before MERMaid caption chunks (source_type == "caption") so that the
+first context seen for any label is preferentially from the CDE text branch.
 
 Output structure:
 {
@@ -40,21 +45,35 @@ def build_identifier_dictionary(unified: dict) -> dict:
       "resolved"   : identifiers for which a name/description was found.
       "unresolved" : identifiers found but not yet linked to a chemical name.
     """
-    all_chunks: List[dict] = (
+    # CDE text branch chunks (procedures, main text, SI text) are listed first
+    # so they take priority as the representative context for any label.
+    # MERMaid visual branch caption chunks are appended afterward as a
+    # secondary source.
+    cde_chunks: List[dict] = (
         unified.get("text_chunks", [])
         + unified.get("si_chunks", [])
     )
+    # Sort within the CDE chunks: procedure > main_text/si_text > anything else
+    _CDE_SOURCE_ORDER = {"procedure": 0, "main_text": 1, "si_text": 1}
+    cde_chunks = sorted(
+        cde_chunks,
+        key=lambda c: _CDE_SOURCE_ORDER.get(c.get("source_type", ""), 2),
+    )
 
-    # Also scan figure captions and text labels.
+    # Figure captions from the MERMaid visual branch — used as secondary source.
+    caption_chunks: List[dict] = []
     for fig in unified.get("figures", []):
         caption = fig.get("caption", "")
         labels  = " ".join(fig.get("text_labels", []))
         if caption or labels:
-            all_chunks.append({
+            caption_chunks.append({
                 "chunk_id":    f"cap_{fig['figure_id']}",
                 "text":        f"{caption} {labels}",
                 "source_type": "caption",
             })
+
+    # CDE chunks come first; MERMaid caption chunks are secondary.
+    all_chunks: List[dict] = cde_chunks + caption_chunks
 
     # Collect raw labels from every chunk.
     raw_label_to_contexts: Dict[str, List[Tuple[str, str]]] = {}

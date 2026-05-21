@@ -45,13 +45,18 @@ def run_pipeline(paper: Paper) -> tuple:
     """
     logger.info(f"=== Starting pipeline for {paper.paper_id} ===")
 
-    # Step 1 — MERMaid extraction
+    # Step 1 — MERMaid branch: extract figures / captions / tables / DataRaider
+    #           reaction rows from the main PDF and SI PDF → initial reaction
+    #           record backbone.
     mermaid_output = run_mermaid(paper)
 
-    # Step 2 — ChemDataExtractor parsing
-    cde_output = run_chemdataextractor(paper)
+    # Step 2 — CDE text branch: receives text_blocks produced by the MERMaid
+    #           branch above, then runs chemistry-aware text parsing to produce
+    #           chemical mentions, condition mentions, and text chunks.
+    cde_output = run_chemdataextractor(paper, mermaid_output=mermaid_output)
 
-    # Step 3 — Merge
+    # Step 3 — Merge: combine MERMaid visual branch + CDE text branch outputs
+    #           into a single unified dict used by all downstream steps.
     unified = merge_extractions(mermaid_output, cde_output)
 
     # Step 4 — Classify figures

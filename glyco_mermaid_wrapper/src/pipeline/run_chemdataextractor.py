@@ -15,13 +15,17 @@ from src.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
-def run_chemdataextractor(paper: Paper) -> dict:
+def run_chemdataextractor(paper: Paper, mermaid_output: dict = None) -> dict:
     """
-    Run ChemDataExtractor on *paper* (main text + SI) and merge the results.
+    Run ChemDataExtractor (CDE text branch) on *paper* (main text + SI).
 
     Parameters
     ----------
-    paper : A registered Paper object.
+    paper          : A registered Paper object.
+    mermaid_output : Optional output dict from run_mermaid() (MERMaid branch).
+                     When provided, ``text_blocks`` and ``si_blocks`` extracted
+                     by MERMaid are passed directly to the CDE adapter so it
+                     can parse them without re-reading from disk.
 
     Returns
     -------
@@ -33,14 +37,25 @@ def run_chemdataextractor(paper: Paper) -> dict:
     """
     logger.info(f"Running ChemDataExtractor on paper {paper.paper_id}")
 
+    # Extract text_blocks and si_blocks from the MERMaid branch output when
+    # available so the CDE adapter can use them directly instead of re-loading
+    # from disk.
+    text_blocks: Optional[list] = None
+    si_blocks: Optional[list] = None
+    if mermaid_output is not None:
+        text_blocks = mermaid_output.get("text_blocks")
+        si_blocks   = mermaid_output.get("si_blocks")
+
     main_result = parse_main_text(
-        paper_id  = paper.paper_id,
-        text_path = paper.pdf_path,   # In real mode, pass extracted plain text here
+        paper_id    = paper.paper_id,
+        text_path   = paper.pdf_path,   # In real mode, pass extracted plain text here
+        text_blocks = text_blocks,
     )
 
     si_result = parse_si_text(
-        paper_id  = paper.paper_id,
-        text_path = paper.si_path,
+        paper_id    = paper.paper_id,
+        text_path   = paper.si_path,
+        text_blocks = si_blocks,
     )
 
     # Merge main + SI results into a single dict.

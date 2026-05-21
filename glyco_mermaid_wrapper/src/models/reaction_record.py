@@ -47,6 +47,10 @@ class ReactionRecord:
     glycan_or_substrate_notes: str = ""
     procedure_reference:       str = "NR"
 
+    # All reaction rows extracted by DataRaider (one entry per table row).
+    # Populated for synthesis papers that have many reactions rather than one.
+    reaction_rows: List[dict] = field(default_factory=list)
+
     # Provenance and quality
     supporting_chunks:  List[str]       = field(default_factory=list)
     provenance:         Dict[str, str]  = field(default_factory=dict)
@@ -93,6 +97,7 @@ class ReactionRecord:
             "stereochemistry":            self.stereochemistry,
             "glycan_or_substrate_notes":  self.glycan_or_substrate_notes,
             "procedure_reference":        self.procedure_reference,
+            "reaction_rows":              self.reaction_rows,
             "supporting_chunks":          self.supporting_chunks,
             "provenance":                 self.provenance,
             "completeness_score":         self.completeness_score,

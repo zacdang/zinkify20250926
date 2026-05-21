@@ -37,5 +37,11 @@ SAMPLE_MERMAID_OUTPUT = SAMPLES_DIR / "sample_mermaid_output.json"
 SAMPLE_CDE_OUTPUT     = SAMPLES_DIR / "sample_cde_output.json"
 SAMPLE_FINAL_OUTPUT   = SAMPLES_DIR / "sample_final_output.json"
 
-# ── Optional external tool paths ─────────────────────────────────────────────
-MERMAID_CLI_PATH: str = os.getenv("MERMAID_CLI_PATH", "mermaid")
+# ── OpenAI (required for DataRaider in real mode) ────────────────────────────
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+
+# ── MERMaid repo path (needed for its Prompts/ directory) ────────────────────
+# Resolve relative to project root so a path like "../MERMaid" works.
+_mermaid_raw = os.getenv("MERMAID_REPO_PATH", "../MERMaid")
+MERMAID_REPO_PATH: Path = (ROOT_DIR / _mermaid_raw).resolve()
+MERMAID_PROMPTS_DIR: Path = MERMAID_REPO_PATH / "Prompts"

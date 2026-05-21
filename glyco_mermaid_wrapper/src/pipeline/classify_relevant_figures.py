@@ -23,8 +23,12 @@ def classify_relevant_figures(unified: dict) -> List[dict]:
     """
     Score each figure in *unified["figures"]* and return those deemed relevant.
 
-    A figure is considered relevant when its caption or text labels contain
-    glycosylation-related keywords (see text_utils.GLYCOSYLATION_KEYWORDS).
+    Two signals are combined:
+    1. Keyword matching on captions / text labels (works well with mock data
+       or PDFs where VisualHeist captured text).
+    2. DataRaider confirmation — if GPT-4o already extracted a reaction table
+       from a figure's image, that figure is definitively relevant (confidence 1.0).
+       This covers real-mode runs where VisualHeist saves images without text.
 
     Parameters
     ----------
@@ -36,26 +40,42 @@ def classify_relevant_figures(unified: dict) -> List[dict]:
     sorted by relevance_confidence descending.
     """
     all_figures = unified.get("figures", [])
+
+    # Build a set of image stems that DataRaider produced tables for.
+    # Table IDs are the image filename stems (e.g. "sianturi_2024_image_8").
+    dataraider_confirmed = {
+        t["table_id"]
+        for t in unified.get("tables", [])
+        if t.get("source") == "dataraider"
+    }
+
     relevant = []
 
     for fig_dict in all_figures:
         figure = Figure.from_dict(fig_dict)
 
-        # Combine caption + text labels into one string for keyword search.
+        # Signal 1: keyword matching on caption / text labels.
         combined_text = figure.caption + " " + " ".join(figure.text_labels)
-
         hits = contains_glycosylation_keyword(combined_text)
-        confidence = min(len(hits) / 5.0, 1.0)  # normalise: ≥5 hits → 1.0
+        confidence = min(len(hits) / 5.0, 1.0)
+        reasons = [f"keyword: {kw}" for kw in hits]
+
+        # Signal 2: DataRaider already extracted data from this image.
+        from pathlib import Path
+        image_stem = Path(figure.image_path).stem if figure.image_path else ""
+        if image_stem in dataraider_confirmed:
+            confidence = 1.0
+            reasons.append("dataraider_confirmed")
 
         figure.is_relevant          = confidence >= CONFIDENCE_THRESHOLD
         figure.relevance_confidence = round(confidence, 3)
-        figure.relevance_reasons    = [f"keyword: {kw}" for kw in hits]
+        figure.relevance_reasons    = reasons
 
         if figure.is_relevant:
             relevant.append(figure.to_dict())
             logger.debug(
                 f"Figure {figure.figure_id} → relevant "
-                f"(confidence={figure.relevance_confidence}, hits={hits})"
+                f"(confidence={figure.relevance_confidence}, hits={reasons})"
             )
         else:
             logger.debug(f"Figure {figure.figure_id} → not relevant (hits={hits})")
